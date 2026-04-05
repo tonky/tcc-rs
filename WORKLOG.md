@@ -176,3 +176,13 @@
 - Updated README.md — removed Tauri/Angular from comparison table, architecture diagram, crates table, tech decisions.
 - Updated AGENTS.md — removed UI-specific workflow instruction.
 - Workspace now: `tccd-daemon` + `tccd-tui` only. 83 tests pass, 0 clippy warnings.
+
+## 2026-04-05 - tuxedo-drivers compatibility
+- **Audited tuxedo-drivers sysfs interfaces** against our daemon's paths. Found mismatches in fan control and keyboard backlight.
+- **Fixed fan control paths** — Try `tuxedo_fan_control/fan{N}_pwm` and `tuxedo_tuxi_fan_control/` first, fall back to generic hwmon `pwm{N}`.
+- **Fixed keyboard paths** — Try LED class (`/sys/class/leds/rgb:keyboard/` or `white:keyboard/`) first, fall back to old `tuxedo_keyboard` platform device. RGB keyboards use `multi_intensity` for color.
+- **Added fan RPM readback** — `get_fan_rpm()` via hwmon `fan{N}_input`.
+- **Added tuxedo_io ioctl module** (`tuxedo_io.rs`) — Pure Rust ioctl via `nix` crate, no C++/bindgen. Opens `/dev/tuxedo_io`, auto-detects Clevo vs Uniwill hardware family. Covers fan speed, webcam toggle, TDP control (PL1/PL2/PL4), fan auto-reset, performance profiles.
+- **Auto-detect at startup** — Daemon tries `IoctlTuxedoIO::open()` first, falls back to `SysFsTuxedoIO` if tuxedo_io module not loaded.
+- **Three TuxedoIO implementations** — `IoctlTuxedoIO` (ioctl + sysfs delegate), `SysFsTuxedoIO` (pure sysfs), `MockTuxedoIO` (tests).
+- 126 tests pass, 0 clippy warnings.

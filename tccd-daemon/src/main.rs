@@ -1,4 +1,5 @@
 use tccd_daemon::io::{self, SysFsTuxedoIO, TuxedoIO};
+use tccd_daemon::tuxedo_io::IoctlTuxedoIO;
 use tccd_daemon::profiles::{FanTableEntry, PowerState, ProfileStore, TccProfile};
 use tccd_daemon::workers::fan::FanControlTask;
 use tccd_daemon::workers::power::PowerStateWorker;
@@ -454,7 +455,17 @@ fn use_session_bus() -> bool {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let hw_io: Arc<dyn TuxedoIO + Send + Sync> = Arc::new(SysFsTuxedoIO::new());
+    // Auto-detect hardware IO: prefer tuxedo_io ioctl if available, fall back to sysfs
+    let hw_io: Arc<dyn TuxedoIO + Send + Sync> = match IoctlTuxedoIO::open() {
+        Ok(ioctl_io) => {
+            eprintln!("Using tuxedo_io ioctl interface");
+            Arc::new(ioctl_io)
+        }
+        Err(e) => {
+            eprintln!("tuxedo_io not available ({}), using sysfs fallback", e);
+            Arc::new(SysFsTuxedoIO::new())
+        }
+    };
     let fan_task = Arc::new(FanControlTask::new(hw_io.clone(), 500));
     fan_task.spawn();
 

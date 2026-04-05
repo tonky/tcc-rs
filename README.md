@@ -83,10 +83,10 @@ The Rust rewrite eliminates all of that:
 
 ## Tech decisions
 
-- **Pure sysfs, no C++ FFI** — Direct `/sys/class/` reads/writes. No bindgen, no libclang build dependency.
+- **Auto-detecting hardware IO** — If `/dev/tuxedo_io` exists (tuxedo-drivers loaded), uses pure Rust ioctl for fan control, webcam, and TDP. Otherwise falls back to direct sysfs. No C++ FFI, no bindgen.
 - **Session bus by default** — Runs rootless on the session D-Bus. Hardware writes are best-effort (log `PermissionDenied`, don't fail the call). System bus mode available for root deployments.
 - **TEA architecture in TUI** — The Elm Architecture (`Model → update() → view()`) keeps TUI logic testable. Side effects are `Command` values returned from pure `update()`, dispatched asynchronously. 120+ tests across the workspace.
-- **Trait-based hardware abstraction** — `TuxedoIO` trait (20 methods) with `SysFsTuxedoIO` (real hardware) and `MockTuxedoIO` (tests + mock daemon). All hardware access goes through the trait.
+- **Trait-based hardware abstraction** — `TuxedoIO` trait (20+ methods) with `IoctlTuxedoIO` (tuxedo_io ioctl), `SysFsTuxedoIO` (generic sysfs), and `MockTuxedoIO` (tests). All hardware access goes through the trait.
 - **Best-effort writes** — Hardware writes log errors to stderr but never fail the D-Bus call. The TUI works fully on non-TUXEDO hardware (reads return defaults, writes are silently skipped).
 
 ## Building
