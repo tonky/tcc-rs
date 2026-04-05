@@ -2,6 +2,8 @@
 
 A ground-up Rust rewrite of [TUXEDO Control Center](https://github.com/tuxedocomputers/tuxedo-control-center), replacing the Node.js daemon + Electron UI with a lightweight terminal interface.
 
+![tcc-rs demo](demo.gif)
+
 ## Why rewrite?
 
 The original TCC runs a **root Node.js daemon** and an **Electron desktop app**. This means:

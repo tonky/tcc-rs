@@ -19,9 +19,9 @@ test-daemon:
 
 # ==== TUI ====
 
-# Run the TCC TUI (terminal interface)
+# Run the TCC TUI (terminal interface, session bus for local dev)
 run-tui:
-    cargo run -p tccd-tui
+    cargo run -p tccd-tui -- --session
 
 # Run TUI tests
 test-tui:

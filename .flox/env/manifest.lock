@@ -24,6 +24,9 @@
       "pkg-config": {
         "pkg-path": "pkg-config"
       },
+      "vhs": {
+        "pkg-path": "vhs"
+      },
       "webkitgtk_4_1": {
         "pkg-path": "webkitgtk_4_1"
       }
@@ -276,6 +279,36 @@
         "doc": "/nix/store/ipyf6xmsjhs0nrl5vpmgwrxl94sp31b1-pkg-config-wrapper-0.29.2-doc",
         "man": "/nix/store/mqbmjcz3vv9gzaffi1bcpmwci9nkhq87-pkg-config-wrapper-0.29.2-man",
         "out": "/nix/store/d0immrndpxnhx32vcfbxngmnf7hmqyc3-pkg-config-wrapper-0.29.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "vhs",
+      "broken": false,
+      "derivation": "/nix/store/z80myyrl9vabgc5f9xg39kl8d7xjbnyc-vhs-0.11.0.drv",
+      "description": "Tool for generating terminal GIFs with code",
+      "install_id": "vhs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "vhs-0.11.0",
+      "pname": "vhs",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:39:58.559210Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.11.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mdyv9x6765h5bkj9zk384pp1mpnywknc-vhs-0.11.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
