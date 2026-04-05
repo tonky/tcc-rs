@@ -45,3 +45,23 @@ check:
 # Clean build artifacts
 clean:
     cargo clean
+
+# ==== Deployment ====
+
+# Install daemon + TUI binaries and systemd service (run as root)
+install: build
+    install -Dm755 target/debug/tccd-daemon /usr/local/bin/tccd-daemon
+    install -Dm755 target/debug/tccd-tui /usr/local/bin/tccd-tui
+    install -Dm644 dist/tccd.service /etc/systemd/system/tccd.service
+    install -Dm644 dist/com.tuxedocomputers.tccd.conf /etc/dbus-1/system.d/com.tuxedocomputers.tccd.conf
+    systemctl daemon-reload
+    @echo "Installed. Enable with: systemctl enable --now tccd"
+
+# Uninstall daemon + TUI binaries and systemd service (run as root)
+uninstall:
+    -systemctl disable --now tccd
+    rm -f /usr/local/bin/tccd-daemon /usr/local/bin/tccd-tui
+    rm -f /etc/systemd/system/tccd.service
+    rm -f /etc/dbus-1/system.d/com.tuxedocomputers.tccd.conf
+    systemctl daemon-reload
+    @echo "Uninstalled."

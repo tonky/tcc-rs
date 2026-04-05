@@ -95,9 +95,29 @@ The Rust rewrite eliminates all of that:
 flox activate
 just build        # or: cargo build --workspace
 just test         # or: cargo test --workspace
-just run-daemon   # starts daemon on session bus
-just run-tui      # launches terminal UI
 ```
+
+## Development (mock daemon, no hardware needed)
+
+```sh
+just run-mock-daemon   # terminal 1: mock daemon on session bus
+just run-tui           # terminal 2: TUI on session bus
+```
+
+## Deployment (real hardware)
+
+```sh
+# Build and install binaries + systemd service
+sudo just install
+
+# Enable and start the daemon
+sudo systemctl enable --now tccd
+
+# Run the TUI (as regular user, connects to system bus)
+tccd-tui
+```
+
+To uninstall: `sudo just uninstall`
 
 ## License
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Tuxedo Control Center Daemon (tcc-rs)
+After=dbus.service
+Wants=dbus.service
+
+[Service]
+Type=dbus
+BusName=com.tuxedocomputers.tccd
+ExecStart=/usr/local/bin/tccd-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
