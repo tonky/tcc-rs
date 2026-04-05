@@ -15,6 +15,7 @@ pub enum AttributeError {
 pub trait TuxedoIO {
     fn set_fan_speed_percent(&self, fan_idx: i32, speed: i32) -> Result<(), AttributeError>;
     fn get_fan_speed_percent(&self, fan_idx: i32) -> Result<i32, AttributeError>;
+    fn get_fan_rpm(&self, fan_idx: i32) -> Result<u32, AttributeError>;
     fn set_webcam_status(&self, enabled: bool) -> Result<(), AttributeError>;
     fn get_cpu_temperature(&self) -> Result<f64, AttributeError>;
     fn get_cpu_frequency_mhz(&self, cpu_idx: i32) -> Result<f64, AttributeError>;
@@ -52,10 +53,31 @@ pub trait TuxedoIO {
 /// Real hardware access via Linux sysfs. Reads work without root;
 /// writes may fail with `PermissionDenied` unless the user has
 /// appropriate privileges or group membership.
+/// Describes what kind of fan control interface was found.
+#[derive(Debug, Clone)]
+enum FanInterface {
+    /// tuxedo-drivers platform device: /sys/devices/platform/{name}/fan{N}_pwm
+    TuxedoPlatform(String),
+    /// Generic hwmon: /sys/class/hwmon/hwmonN/pwmN
+    GenericHwmon(String),
+}
+
+/// Describes what kind of keyboard backlight interface was found.
+#[derive(Debug, Clone)]
+enum KeyboardInterface {
+    /// Linux LED class: /sys/class/leds/{name}/ with brightness file
+    LedClass { path: String, is_rgb: bool },
+    /// Old tuxedo_keyboard platform: /sys/devices/platform/tuxedo_keyboard/
+    TuxedoPlatform,
+}
+
 pub struct SysFsTuxedoIO {
-    /// Cached path to the hwmon device that has PWM fan control.
-    /// Lazily discovered on first fan access.
+    /// Cached fan control interface (tuxedo platform or generic hwmon).
+    fan_interface: RwLock<Option<FanInterface>>,
+    /// Cached path to the hwmon device that has fan RPM readback.
     fan_hwmon_path: RwLock<Option<String>>,
+    /// Cached keyboard backlight interface.
+    keyboard_interface: RwLock<Option<KeyboardInterface>>,
     /// Cached path to the AC power supply.
     ac_supply_path: RwLock<Option<String>>,
     /// Cached path to the battery.
@@ -73,7 +95,9 @@ impl Default for SysFsTuxedoIO {
 impl SysFsTuxedoIO {
     pub fn new() -> Self {
         Self {
+            fan_interface: RwLock::new(None),
             fan_hwmon_path: RwLock::new(None),
+            keyboard_interface: RwLock::new(None),
             ac_supply_path: RwLock::new(None),
             battery_path: RwLock::new(None),
             backlight_path: RwLock::new(None),
@@ -106,10 +130,46 @@ impl SysFsTuxedoIO {
         })
     }
 
-    /// Find the hwmon device that has PWM fan control files.
-    /// Scans /sys/class/hwmon/hwmon* for pwm1.
+    /// Find fan control interface. Tries in order:
+    /// 1. tuxedo-drivers platform device (tuxedo_fan_control, tuxedo_tuxi_fan_control)
+    /// 2. Generic hwmon with pwm1
+    fn find_fan_interface(&self) -> Result<FanInterface, AttributeError> {
+        if let Some(ref iface) = *self.fan_interface.read().unwrap() {
+            return Ok(iface.clone());
+        }
+
+        // 1. Check tuxedo-drivers platform devices
+        let platform_base = "/sys/devices/platform";
+        for name in &["tuxedo_fan_control", "tuxedo_tuxi_fan_control"] {
+            let path = format!("{}/{}", platform_base, name);
+            if std::path::Path::new(&path).join("fan1_pwm").exists() {
+                let iface = FanInterface::TuxedoPlatform(path);
+                *self.fan_interface.write().unwrap() = Some(iface.clone());
+                return Ok(iface);
+            }
+        }
+
+        // 2. Fall back to generic hwmon with pwm1
+        let hwmon_base = "/sys/class/hwmon";
+        if let Ok(entries) = std::fs::read_dir(hwmon_base) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.join("pwm1").exists() {
+                    let hwmon_path = path.to_string_lossy().to_string();
+                    let iface = FanInterface::GenericHwmon(hwmon_path);
+                    *self.fan_interface.write().unwrap() = Some(iface.clone());
+                    return Ok(iface);
+                }
+            }
+        }
+
+        Err(AttributeError::NotFound(
+            "No fan control interface found (tuxedo_fan_control or hwmon with PWM)".to_string(),
+        ))
+    }
+
+    /// Find the hwmon device that has fan RPM readback (fan*_input).
     fn find_fan_hwmon(&self) -> Result<String, AttributeError> {
-        // Check cache first
         if let Some(ref path) = *self.fan_hwmon_path.read().unwrap() {
             return Ok(path.clone());
         }
@@ -121,7 +181,8 @@ impl SysFsTuxedoIO {
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.join("pwm1").exists() {
+            // Look for fan0_input (tuxedo hwmon) or fan1_input (standard)
+            if path.join("fan0_input").exists() || path.join("fan1_input").exists() {
                 let hwmon_path = path.to_string_lossy().to_string();
                 *self.fan_hwmon_path.write().unwrap() = Some(hwmon_path.clone());
                 return Ok(hwmon_path);
@@ -129,7 +190,51 @@ impl SysFsTuxedoIO {
         }
 
         Err(AttributeError::NotFound(
-            "No hwmon device with PWM fan control found".to_string(),
+            "No hwmon device with fan RPM readback found".to_string(),
+        ))
+    }
+
+    /// Find keyboard backlight interface. Tries in order:
+    /// 1. Linux LED class: /sys/class/leds/rgb:keyboard/ (multi-color)
+    /// 2. Linux LED class: /sys/class/leds/white:keyboard/ (single-color)
+    /// 3. Old tuxedo_keyboard platform device
+    fn find_keyboard(&self) -> Result<KeyboardInterface, AttributeError> {
+        if let Some(ref iface) = *self.keyboard_interface.read().unwrap() {
+            return Ok(iface.clone());
+        }
+
+        // 1. RGB LED class (NB04)
+        let rgb_path = "/sys/class/leds/rgb:keyboard";
+        if std::path::Path::new(rgb_path).join("brightness").exists() {
+            let iface = KeyboardInterface::LedClass {
+                path: rgb_path.to_string(),
+                is_rgb: true,
+            };
+            *self.keyboard_interface.write().unwrap() = Some(iface.clone());
+            return Ok(iface);
+        }
+
+        // 2. White LED class (NB05)
+        let white_path = "/sys/class/leds/white:keyboard";
+        if std::path::Path::new(white_path).join("brightness").exists() {
+            let iface = KeyboardInterface::LedClass {
+                path: white_path.to_string(),
+                is_rgb: false,
+            };
+            *self.keyboard_interface.write().unwrap() = Some(iface.clone());
+            return Ok(iface);
+        }
+
+        // 3. Old platform device
+        let platform_path = "/sys/devices/platform/tuxedo_keyboard";
+        if std::path::Path::new(platform_path).exists() {
+            let iface = KeyboardInterface::TuxedoPlatform;
+            *self.keyboard_interface.write().unwrap() = Some(iface.clone());
+            return Ok(iface);
+        }
+
+        Err(AttributeError::NotFound(
+            "No keyboard backlight interface found (LED class or tuxedo_keyboard)".to_string(),
         ))
     }
 
@@ -338,30 +443,61 @@ impl SysFsTuxedoIO {
 
 impl TuxedoIO for SysFsTuxedoIO {
     fn set_fan_speed_percent(&self, fan_idx: i32, speed: i32) -> Result<(), AttributeError> {
-        let hwmon = self.find_fan_hwmon()?;
-        let fan_num = fan_idx + 1; // sysfs uses 1-based numbering
-
-        // Enable manual fan control (mode 1 = manual)
-        let enable_path = format!("{}/pwm{}_enable", hwmon, fan_num);
-        Self::write_sysfs(&enable_path, "1")?;
-
-        // Convert percent (0-100) to PWM value (0-255)
+        let iface = self.find_fan_interface()?;
         let pwm_value = (speed.clamp(0, 100) as f64 * 255.0 / 100.0).round() as u32;
-        let pwm_path = format!("{}/pwm{}", hwmon, fan_num);
-        Self::write_sysfs(&pwm_path, &pwm_value.to_string())
+
+        match iface {
+            FanInterface::TuxedoPlatform(path) => {
+                let fan_num = fan_idx + 1; // tuxedo uses 1-based: fan1_pwm, fan2_pwm
+                let enable_path = format!("{}/fan{}_pwm_enable", path, fan_num);
+                Self::write_sysfs(&enable_path, "1")?; // 1 = manual
+                let pwm_path = format!("{}/fan{}_pwm", path, fan_num);
+                Self::write_sysfs(&pwm_path, &pwm_value.to_string())
+            }
+            FanInterface::GenericHwmon(hwmon) => {
+                let fan_num = fan_idx + 1; // hwmon uses 1-based: pwm1, pwm2
+                let enable_path = format!("{}/pwm{}_enable", hwmon, fan_num);
+                Self::write_sysfs(&enable_path, "1")?;
+                let pwm_path = format!("{}/pwm{}", hwmon, fan_num);
+                Self::write_sysfs(&pwm_path, &pwm_value.to_string())
+            }
+        }
     }
 
     fn get_fan_speed_percent(&self, fan_idx: i32) -> Result<i32, AttributeError> {
-        let hwmon = self.find_fan_hwmon()?;
-        let fan_num = fan_idx + 1;
-        let pwm_path = format!("{}/pwm{}", hwmon, fan_num);
+        let iface = self.find_fan_interface()?;
 
-        let pwm_str = Self::read_sysfs(&pwm_path)?;
+        let pwm_str = match iface {
+            FanInterface::TuxedoPlatform(path) => {
+                let fan_num = fan_idx + 1;
+                Self::read_sysfs(&format!("{}/fan{}_pwm", path, fan_num))?
+            }
+            FanInterface::GenericHwmon(hwmon) => {
+                let fan_num = fan_idx + 1;
+                Self::read_sysfs(&format!("{}/pwm{}", hwmon, fan_num))?
+            }
+        };
+
         let pwm: f64 = pwm_str.parse().map_err(|_| {
             AttributeError::HardwareError(format!("Invalid PWM value: {}", pwm_str))
         })?;
-
         Ok((pwm * 100.0 / 255.0).round() as i32)
+    }
+
+    fn get_fan_rpm(&self, fan_idx: i32) -> Result<u32, AttributeError> {
+        let hwmon = self.find_fan_hwmon()?;
+        // tuxedo hwmon uses 0-based (fan0_input), standard uses 1-based (fan1_input)
+        let path_0based = format!("{}/fan{}_input", hwmon, fan_idx);
+        let path_1based = format!("{}/fan{}_input", hwmon, fan_idx + 1);
+        let path = if std::path::Path::new(&path_0based).exists() {
+            path_0based
+        } else {
+            path_1based
+        };
+        let rpm_str = Self::read_sysfs(&path)?;
+        rpm_str.parse().map_err(|_| {
+            AttributeError::HardwareError(format!("Invalid RPM value: {}", rpm_str))
+        })
     }
 
     fn set_webcam_status(&self, enabled: bool) -> Result<(), AttributeError> {
@@ -529,26 +665,69 @@ impl TuxedoIO for SysFsTuxedoIO {
     }
 
     fn set_keyboard_brightness(&self, brightness: u8) -> Result<(), AttributeError> {
-        Self::write_sysfs(
-            "/sys/devices/platform/tuxedo_keyboard/brightness",
-            &brightness.to_string(),
-        )
+        match self.find_keyboard()? {
+            KeyboardInterface::LedClass { path, .. } => {
+                Self::write_sysfs(
+                    &format!("{}/brightness", path),
+                    &brightness.to_string(),
+                )
+            }
+            KeyboardInterface::TuxedoPlatform => {
+                Self::write_sysfs(
+                    "/sys/devices/platform/tuxedo_keyboard/brightness",
+                    &brightness.to_string(),
+                )
+            }
+        }
     }
 
     fn set_keyboard_color(&self, color: &str) -> Result<(), AttributeError> {
-        // Color as hex string without '#', e.g. "ff0000"
         let color = color.trim_start_matches('#');
-        Self::write_sysfs(
-            "/sys/devices/platform/tuxedo_keyboard/color_left",
-            color,
-        )
+        match self.find_keyboard()? {
+            KeyboardInterface::LedClass { path, is_rgb } => {
+                if is_rgb {
+                    // RGB LED class uses multi_intensity: "R G B" (0-255 each)
+                    if color.len() >= 6 {
+                        let r = u8::from_str_radix(&color[0..2], 16).unwrap_or(255);
+                        let g = u8::from_str_radix(&color[2..4], 16).unwrap_or(255);
+                        let b = u8::from_str_radix(&color[4..6], 16).unwrap_or(255);
+                        Self::write_sysfs(
+                            &format!("{}/multi_intensity", path),
+                            &format!("{} {} {}", r, g, b),
+                        )
+                    } else {
+                        Err(AttributeError::HardwareError(
+                            format!("Invalid color hex: {}", color),
+                        ))
+                    }
+                } else {
+                    // White-only keyboard — color changes not supported
+                    Ok(())
+                }
+            }
+            KeyboardInterface::TuxedoPlatform => {
+                Self::write_sysfs(
+                    "/sys/devices/platform/tuxedo_keyboard/color_left",
+                    color,
+                )
+            }
+        }
     }
 
     fn set_keyboard_mode(&self, mode: &str) -> Result<(), AttributeError> {
-        Self::write_sysfs(
-            "/sys/devices/platform/tuxedo_keyboard/mode",
-            mode,
-        )
+        match self.find_keyboard()? {
+            KeyboardInterface::LedClass { .. } => {
+                // LED class doesn't have a separate mode file; mode is
+                // controlled via triggers or is hardware-fixed.
+                Ok(())
+            }
+            KeyboardInterface::TuxedoPlatform => {
+                Self::write_sysfs(
+                    "/sys/devices/platform/tuxedo_keyboard/mode",
+                    mode,
+                )
+            }
+        }
     }
 
     fn get_gpu_info(&self) -> Result<GpuInfoData, AttributeError> {
@@ -574,13 +753,26 @@ impl TuxedoIO for SysFsTuxedoIO {
     }
 
     fn get_fan_count(&self) -> Result<usize, AttributeError> {
-        let hwmon = self.find_fan_hwmon()?;
+        let iface = self.find_fan_interface()?;
         let mut count = 0;
-        for i in 1..=8 {
-            if std::path::Path::new(&format!("{}/pwm{}", hwmon, i)).exists() {
-                count = i;
-            } else {
-                break;
+        match iface {
+            FanInterface::TuxedoPlatform(path) => {
+                for i in 1..=8 {
+                    if std::path::Path::new(&format!("{}/fan{}_pwm", path, i)).exists() {
+                        count = i as usize;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            FanInterface::GenericHwmon(hwmon) => {
+                for i in 1..=8 {
+                    if std::path::Path::new(&format!("{}/pwm{}", hwmon, i)).exists() {
+                        count = i as usize;
+                    } else {
+                        break;
+                    }
+                }
             }
         }
         Ok(count)
@@ -654,6 +846,10 @@ impl TuxedoIO for MockTuxedoIO {
             .copied()
             .unwrap_or(0);
         Ok(speed)
+    }
+
+    fn get_fan_rpm(&self, _fan_idx: i32) -> Result<u32, AttributeError> {
+        Ok(1200) // fixed mock RPM
     }
 
     fn set_webcam_status(&self, enabled: bool) -> Result<(), AttributeError> {
@@ -810,8 +1006,8 @@ mod tests {
         std::fs::write(hwmon0.join("pwm1_enable"), "1").unwrap();
 
         let sysfs = SysFsTuxedoIO::new();
-        // Override the hwmon path cache directly
-        *sysfs.fan_hwmon_path.write().unwrap() = Some(hwmon0.to_string_lossy().to_string());
+        *sysfs.fan_interface.write().unwrap() =
+            Some(FanInterface::GenericHwmon(hwmon0.to_string_lossy().to_string()));
 
         let speed = sysfs.get_fan_speed_percent(0).unwrap();
         // 128/255 * 100 = 50.2 → rounds to 50
@@ -827,7 +1023,8 @@ mod tests {
         std::fs::write(hwmon0.join("pwm1_enable"), "0").unwrap();
 
         let sysfs = SysFsTuxedoIO::new();
-        *sysfs.fan_hwmon_path.write().unwrap() = Some(hwmon0.to_string_lossy().to_string());
+        *sysfs.fan_interface.write().unwrap() =
+            Some(FanInterface::GenericHwmon(hwmon0.to_string_lossy().to_string()));
 
         sysfs.set_fan_speed_percent(0, 75).unwrap();
 
@@ -842,6 +1039,38 @@ mod tests {
         // Read back
         let speed = sysfs.get_fan_speed_percent(0).unwrap();
         assert_eq!(speed, 75);
+    }
+
+    #[test]
+    fn test_sysfs_tuxedo_platform_fan() {
+        let dir = tempfile::tempdir().unwrap();
+        let platform = dir.path().join("tuxedo_fan_control");
+        std::fs::create_dir(&platform).unwrap();
+        std::fs::write(platform.join("fan1_pwm"), "0").unwrap();
+        std::fs::write(platform.join("fan1_pwm_enable"), "0").unwrap();
+        std::fs::write(platform.join("fan2_pwm"), "0").unwrap();
+        std::fs::write(platform.join("fan2_pwm_enable"), "0").unwrap();
+
+        let sysfs = SysFsTuxedoIO::new();
+        *sysfs.fan_interface.write().unwrap() =
+            Some(FanInterface::TuxedoPlatform(platform.to_string_lossy().to_string()));
+
+        // Set fan 0 (maps to fan1_pwm) to 60%
+        sysfs.set_fan_speed_percent(0, 60).unwrap();
+        let pwm = std::fs::read_to_string(platform.join("fan1_pwm")).unwrap();
+        assert_eq!(pwm, "153"); // 60% of 255 = 153
+
+        // Set fan 1 (maps to fan2_pwm) to 80%
+        sysfs.set_fan_speed_percent(1, 80).unwrap();
+        let pwm = std::fs::read_to_string(platform.join("fan2_pwm")).unwrap();
+        assert_eq!(pwm, "204"); // 80% of 255 = 204
+
+        // Read back
+        assert_eq!(sysfs.get_fan_speed_percent(0).unwrap(), 60);
+        assert_eq!(sysfs.get_fan_speed_percent(1).unwrap(), 80);
+
+        // Fan count
+        assert_eq!(sysfs.get_fan_count().unwrap(), 2);
     }
 
     #[test]
@@ -962,7 +1191,8 @@ mod tests {
         std::fs::write(hwmon0.join("pwm1_enable"), "1").unwrap();
 
         let sysfs = SysFsTuxedoIO::new();
-        *sysfs.fan_hwmon_path.write().unwrap() = Some(hwmon0.to_string_lossy().to_string());
+        *sysfs.fan_interface.write().unwrap() =
+            Some(FanInterface::GenericHwmon(hwmon0.to_string_lossy().to_string()));
 
         let count = sysfs.get_fan_count().unwrap();
         assert_eq!(count, 2);
