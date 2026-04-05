@@ -1,0 +1,319 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "glib": {
+        "pkg-path": "glib"
+      },
+      "gtk3": {
+        "pkg-path": "gtk3"
+      },
+      "just": {
+        "pkg-path": "just"
+      },
+      "librsvg": {
+        "pkg-path": "librsvg"
+      },
+      "libsoup_3": {
+        "pkg-path": "libsoup_3"
+      },
+      "openssl": {
+        "pkg-path": "openssl"
+      },
+      "pkg-config": {
+        "pkg-path": "pkg-config"
+      },
+      "webkitgtk_4_1": {
+        "pkg-path": "webkitgtk_4_1"
+      }
+    },
+    "hook": {},
+    "profile": {},
+    "options": {
+      "systems": [
+        "x86_64-linux"
+      ],
+      "allow": {
+        "unfree": true,
+        "broken": true
+      }
+    }
+  },
+  "packages": [
+    {
+      "attr_path": "glib",
+      "broken": false,
+      "derivation": "/nix/store/rcs7dr9qymgg4zv60wcj2jcvcfpcs8f7-glib-2.86.3.drv",
+      "description": "C library of programming buildings blocks",
+      "install_id": "glib",
+      "license": "LGPL-2.1-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "glib-2.86.3",
+      "pname": "glib",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:36:33.277618Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.86.3",
+      "outputs_to_install": [
+        "bin",
+        "bin"
+      ],
+      "outputs": {
+        "bin": "/nix/store/hak3031i8bpmvdqfla85q6q3bgwqppb0-glib-2.86.3-bin",
+        "debug": "/nix/store/mzy3lyx2dhg8cw12gjwhhip5sfl1vxhh-glib-2.86.3-debug",
+        "dev": "/nix/store/4lsi1w9paqi22y1vn29ix5l5gvjikzqy-glib-2.86.3-dev",
+        "devdoc": "/nix/store/qjmvjnvswvpwsajw8issazw7l7967zcq-glib-2.86.3-devdoc",
+        "out": "/nix/store/d864rlg855kf2hnnnfdzcx54grp8n10x-glib-2.86.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gtk3",
+      "broken": false,
+      "derivation": "/nix/store/dk2vzxnyv9j9dn0lp3aavgg4jr9n41rc-gtk+3-3.24.51.drv",
+      "description": "Multi-platform toolkit for creating graphical user interfaces",
+      "install_id": "gtk3",
+      "license": "LGPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "gtk+3-3.24.51",
+      "pname": "gtk3",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:36:34.259390Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "gtk+3-3.24.51",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/4q5whgmgixy5arrrdi915syjw4fyxc22-gtk+3-3.24.51-debug",
+        "dev": "/nix/store/x4yjfzaslrwhk26qp242mnwdzidap7c8-gtk+3-3.24.51-dev",
+        "devdoc": "/nix/store/5pp58sfnfxq1rq8icjd3jxx520dgj9ni-gtk+3-3.24.51-devdoc",
+        "out": "/nix/store/yl5yl395iqx88kd1m7lx7p7b65n0jfx9-gtk+3-3.24.51"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "just",
+      "broken": false,
+      "derivation": "/nix/store/nkxpp5cs049ja5b4ilsqss841ny6vclg-just-1.48.1.drv",
+      "description": "Handy way to save and run project-specific commands",
+      "install_id": "just",
+      "license": "CC0-1.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "just-1.48.1",
+      "pname": "just",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:36:53.948108Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.48.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/jqgm95ji0j3372ijaq2xa1id01hswarj-just-1.48.1-doc",
+        "man": "/nix/store/rc0db27l2zffmga7n59cgj11lhr5jlkp-just-1.48.1-man",
+        "out": "/nix/store/yasj96m1zc22cd9mi6i2wgbznksk0ycj-just-1.48.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "librsvg",
+      "broken": false,
+      "derivation": "/nix/store/gw24b3hl242qaxk5v9h1m939hyp9iv9c-librsvg-2.61.4.drv",
+      "description": "Small library to render SVG images to Cairo surfaces",
+      "install_id": "librsvg",
+      "license": "LGPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "librsvg-2.61.4",
+      "pname": "librsvg",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:36:57.447022Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.61.4",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/d9bd603nwqq1jx39iagyabz4vwm5bp99-librsvg-2.61.4-dev",
+        "devdoc": "/nix/store/cqm36s06pj0cpzalb83ik2f63wqf40v8-librsvg-2.61.4-devdoc",
+        "out": "/nix/store/kn9lwgvdaa94nl9nsxx5p198gry21n03-librsvg-2.61.4"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "libsoup_3",
+      "broken": false,
+      "derivation": "/nix/store/na7n9bn225546v7yyc5xjky639b3427q-libsoup-3.6.6.drv",
+      "description": "HTTP client/server library for GNOME",
+      "install_id": "libsoup_3",
+      "license": "LGPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "libsoup-3.6.6",
+      "pname": "libsoup_3",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:36:57.837757Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.6.6",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/xdx23py20avmc2nq23g54nhzr50d3xqh-libsoup-3.6.6-debug",
+        "dev": "/nix/store/l8dx5vx0zna5nqwc41dzhkgx0banf1d6-libsoup-3.6.6-dev",
+        "devdoc": "/nix/store/4i31zj5rvx5gvalqcy8602n629p7qnkf-libsoup-3.6.6-devdoc",
+        "out": "/nix/store/q3xfaw0xw291byfii8784q43xvs3bd36-libsoup-3.6.6"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "openssl",
+      "broken": false,
+      "derivation": "/nix/store/dip8yqvwhqwgyici1w70n0gfm3ql46r1-openssl-3.6.1.drv",
+      "description": "Cryptographic library that implements the SSL and TLS protocols",
+      "install_id": "openssl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "openssl-3.6.1",
+      "pname": "openssl",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:37:18.887641Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.6.1",
+      "outputs_to_install": [
+        "bin",
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/8q9wrmngl1mhvqgg0l018339zz86m184-openssl-3.6.1-bin",
+        "debug": "/nix/store/4bsbm214ybdhfg886j1nhyqhig1jqr71-openssl-3.6.1-debug",
+        "dev": "/nix/store/79xszwqidf98ag703b5c82q3pwg9lyzq-openssl-3.6.1-dev",
+        "doc": "/nix/store/y4pjymdjj68hnbffxr2niafwjy2ngy7s-openssl-3.6.1-doc",
+        "man": "/nix/store/dcwdxd2av5wj077jpj0zk5c4hddc9s44-openssl-3.6.1-man",
+        "out": "/nix/store/bga5xf95jaypy385hvxm4h3yxl3m1566-openssl-3.6.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pkg-config",
+      "broken": false,
+      "derivation": "/nix/store/41c5s0jfm2ymy6zygf41mvww7lspjs59-pkg-config-wrapper-0.29.2.drv",
+      "description": "Tool that allows packages to find out information about other packages (wrapper script)",
+      "install_id": "pkg-config",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "pkg-config-wrapper-0.29.2",
+      "pname": "pkg-config",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:37:30.854389Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.29.2",
+      "outputs_to_install": [
+        "man",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/ipyf6xmsjhs0nrl5vpmgwrxl94sp31b1-pkg-config-wrapper-0.29.2-doc",
+        "man": "/nix/store/mqbmjcz3vv9gzaffi1bcpmwci9nkhq87-pkg-config-wrapper-0.29.2-man",
+        "out": "/nix/store/d0immrndpxnhx32vcfbxngmnf7hmqyc3-pkg-config-wrapper-0.29.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "webkitgtk_4_1",
+      "broken": false,
+      "derivation": "/nix/store/vl9cqnhvs0a72h5zx39yn1wmx4agdzn4-webkitgtk-2.52.1+abi=4.1.drv",
+      "description": "Web content rendering engine, GTK port",
+      "install_id": "webkitgtk_4_1",
+      "license": "BSD-2-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "name": "webkitgtk-2.52.1+abi=4.1",
+      "pname": "webkitgtk_4_1",
+      "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+      "rev_count": 972949,
+      "rev_date": "2026-04-01T09:47:46Z",
+      "scrape_date": "2026-04-02T19:40:13.306313Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.52.1+abi=4.1",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/daqmnrm7ahvp5bsyb09lw88rp0bmpb7x-webkitgtk-2.52.1+abi=4.1-debug",
+        "dev": "/nix/store/667m8qpqck2qpd6psbl31l43bh9n0jw8-webkitgtk-2.52.1+abi=4.1-dev",
+        "devdoc": "/nix/store/fbb08fwvqhb1j1y1p30y25aqd97z5555-webkitgtk-2.52.1+abi=4.1-devdoc",
+        "out": "/nix/store/j7p0f75r22zcvvpvqz6c1gaiipfvjk3q-webkitgtk-2.52.1+abi=4.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

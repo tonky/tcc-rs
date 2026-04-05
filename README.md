@@ -1,0 +1,102 @@
+# tcc-rs — Tuxedo Control Center (Rust)
+
+A ground-up Rust rewrite of [TUXEDO Control Center](https://github.com/tuxedocomputers/tuxedo-control-center), replacing the Node.js daemon + Electron UI with a lightweight terminal interface.
+
+## Why rewrite?
+
+The original TCC runs a **root Node.js daemon** and an **Electron desktop app**. This means:
+
+- ~200 MB resident memory for a config utility
+- A full Chromium instance bundled for the UI
+- C++ native addon (`node-addon-api`) for hardware access
+- Node.js running as PID 1-adjacent root service — large attack surface
+
+The Rust rewrite eliminates all of that:
+
+| | Original | tcc-rs |
+|---|---|---|
+| Daemon | Node.js (root systemd) | Rust + tokio (session or system bus) |
+| Hardware IO | C++ addon via node-addon-api | Pure Rust sysfs reads/writes |
+| UI | Electron + Angular (~200 MB) | ratatui TUI (~5 MB) |
+| D-Bus | node-dbus-next | zbus 5 (async, zero-copy) |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        User Space                           │
+│                                                             │
+│  ┌─────────────┐    D-Bus (session)    ┌────────────────┐   │
+│  │  tccd-tui   │◄────────────────────►│  tccd-daemon   │   │
+│  │  (ratatui)  │                       │  (tokio+zbus)  │   │
+│  └─────────────┘                       │                │   │
+│                                        │  ┌───────────┐ │   │
+│                                        │  │ Workers   │ │   │
+│                                        │  │  fan.rs   │ │   │
+│                                        │  │  power.rs │ │   │
+│                                        │  └───────────┘ │   │
+│                                        │                │   │
+│                                        │  ┌───────────┐ │   │
+│                                        │  │ProfileStore│ │   │
+│                                        │  │(JSON file) │ │   │
+│                                        │  └───────────┘ │   │
+│                                        └───────┬────────┘   │
+│                                                │            │
+├────────────────────────────────────────────────┼────────────┤
+│                      Kernel / sysfs            │            │
+│                                                ▼            │
+│  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌─────────┐       │
+│  │ hwmon/*  │ │ thermal/* │ │power_sup.│ │backlight│       │
+│  │ pwm1-N   │ │ zone temp │ │ AC / BAT │ │ bright. │       │
+│  │ fan RPM  │ │ cpu freq  │ │ charging │ │         │       │
+│  └──────────┘ └───────────┘ └──────────┘ └─────────┘       │
+│  ┌──────────┐ ┌───────────┐ ┌──────────┐                   │
+│  │ drm/*    │ │cpu/cpufreq│ │ tuxedo_  │                   │
+│  │ GPU PCI  │ │ governor  │ │ keyboard │                   │
+│  │ hwmon    │ │ turbo/EPP │ │ backlight│                   │
+│  └──────────┘ └───────────┘ └──────────┘                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Crates
+
+| Crate | Description |
+|---|---|
+| `tccd-daemon` | D-Bus service with hardware IO, profile management, fan/power workers |
+| `tccd-tui` | Terminal UI (ratatui) — 10 tabs, interactive fan curve editor, form widgets |
+
+## What works
+
+- **Fan control** — Multi-fan PWM with temperature-based curve interpolation (linear, 20%/tick smoothing)
+- **CPU tuning** — Governor, turbo boost, energy performance preference (all cores)
+- **Profiles** — 4 built-in + custom profiles, AC/battery assignment, JSON persistence
+- **Auto-switching** — Polls AC/battery state, auto-applies mapped profile on transition
+- **Charging** — Start/end threshold control via sysfs
+- **Keyboard** — Brightness, color, mode via tuxedo_keyboard driver
+- **Display** — Backlight brightness read/write via sysfs
+- **GPU info** — PCI vendor/device scan, hwmon temperature, PRIME mode detection
+- **Webcam** — USB bind/unbind toggle
+- **Shutdown** — `shutdown +N` / `shutdown -c` scheduling
+- **TUI** — Dashboard, profiles, fan curves, settings, power/display/webcam/keyboard/charging/info tabs
+
+## Tech decisions
+
+- **Pure sysfs, no C++ FFI** — Direct `/sys/class/` reads/writes. No bindgen, no libclang build dependency.
+- **Session bus by default** — Runs rootless on the session D-Bus. Hardware writes are best-effort (log `PermissionDenied`, don't fail the call). System bus mode available for root deployments.
+- **TEA architecture in TUI** — The Elm Architecture (`Model → update() → view()`) keeps TUI logic testable. Side effects are `Command` values returned from pure `update()`, dispatched asynchronously. 120+ tests across the workspace.
+- **Trait-based hardware abstraction** — `TuxedoIO` trait (20 methods) with `SysFsTuxedoIO` (real hardware) and `MockTuxedoIO` (tests + mock daemon). All hardware access goes through the trait.
+- **Best-effort writes** — Hardware writes log errors to stderr but never fail the D-Bus call. The TUI works fully on non-TUXEDO hardware (reads return defaults, writes are silently skipped).
+
+## Building
+
+```sh
+flox activate
+just build        # or: cargo build --workspace
+just test         # or: cargo test --workspace
+just run-daemon   # starts daemon on session bus
+just run-tui      # launches terminal UI
+```
+
+## License
+
+See upstream [TUXEDO Control Center](https://github.com/tuxedocomputers/tuxedo-control-center) for license terms.

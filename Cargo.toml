@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "tccd-daemon",
+    "tccd-tui",
+]
+resolver = "2"
