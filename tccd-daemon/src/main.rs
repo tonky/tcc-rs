@@ -301,14 +301,34 @@ impl TccDaemon {
     // ─── Charging ───────────────────────────────────────────────────
 
     async fn get_charging_settings(&self) -> fdo::Result<String> {
-        let store = self.profile_store.lock().await;
-        serde_json::to_string(store.get_charging_settings())
+        let mut settings = {
+            let store = self.profile_store.lock().await;
+            store.get_charging_settings().clone()
+        };
+        // Overlay real hardware values if available
+        if let Ok(profile) = self.io.get_charging_profile() {
+            settings.charging_profile = sysfs_to_charging_profile(&profile).to_string();
+        }
+        if let Ok(priority) = self.io.get_charging_priority() {
+            settings.charging_priority = sysfs_to_charging_priority(&priority).to_string();
+        }
+        serde_json::to_string(&settings)
             .map_err(|e| fdo::Error::Failed(e.to_string()))
     }
 
     async fn set_charging_settings(&mut self, json: String) -> fdo::Result<()> {
         let state: tccd_daemon::profiles::ChargingSettings =
             serde_json::from_str(&json).map_err(|e| fdo::Error::Failed(e.to_string()))?;
+
+        // Apply charging profile/priority to tuxedo sysfs (best-effort)
+        let sysfs_profile = charging_profile_to_sysfs(&state.charging_profile);
+        if let Err(e) = self.io.set_charging_profile(sysfs_profile) {
+            eprintln!("Charging profile: {}", e);
+        }
+        let sysfs_priority = charging_priority_to_sysfs(&state.charging_priority);
+        if let Err(e) = self.io.set_charging_priority(sysfs_priority) {
+            eprintln!("Charging priority: {}", e);
+        }
 
         // Apply charging thresholds to hardware (best-effort)
         let start = state.start_threshold as u8;
@@ -447,6 +467,59 @@ impl TccDaemon {
         });
         serde_json::to_string(&info).map_err(|e| fdo::Error::Failed(e.to_string()))
     }
+
+    async fn get_capabilities(&self) -> fdo::Result<String> {
+        let charge_thresholds = self.io.get_charge_thresholds().is_ok();
+        let charging_profile = self.io.get_charging_profile().is_ok();
+        let fan_ok = self.io.get_fan_count().map(|c| c > 0).unwrap_or(false);
+        let display_ok = self.io.get_display_brightness().is_ok();
+
+        let result = serde_json::json!({
+            "chargeThresholds": charge_thresholds,
+            "chargingProfile": charging_profile,
+            "fanControl": fan_ok,
+            "displayBrightness": display_ok,
+        });
+        serde_json::to_string(&result).map_err(|e| fdo::Error::Failed(e.to_string()))
+    }
+}
+
+/// Map TUI charging profile name → sysfs value.
+fn charging_profile_to_sysfs(profile: &str) -> &str {
+    match profile {
+        "Full Capacity" => "high_capacity",
+        "Reduced" => "balanced",
+        "Stationary" => "stationary",
+        _ => "high_capacity",
+    }
+}
+
+/// Map sysfs charging profile → TUI name.
+fn sysfs_to_charging_profile(sysfs: &str) -> &str {
+    match sysfs {
+        "high_capacity" => "Full Capacity",
+        "balanced" => "Reduced",
+        "stationary" => "Stationary",
+        _ => "Full Capacity",
+    }
+}
+
+/// Map TUI charging priority name → sysfs value.
+fn charging_priority_to_sysfs(priority: &str) -> &str {
+    match priority {
+        "Battery" => "charge_battery",
+        "Performance" => "performance",
+        _ => "charge_battery",
+    }
+}
+
+/// Map sysfs charging priority → TUI name.
+fn sysfs_to_charging_priority(sysfs: &str) -> &str {
+    match sysfs {
+        "charge_battery" => "Battery",
+        "performance" => "Performance",
+        _ => "Battery",
+    }
 }
 
 fn use_session_bus() -> bool {
@@ -529,11 +602,14 @@ fn dirs_config_path() -> std::path::PathBuf {
     if let Ok(dir) = std::env::var("TCCD_CONFIG_DIR") {
         return std::path::PathBuf::from(dir);
     }
-    // Per-user config by default; use TCCD_CONFIG_DIR=/etc/tcc for system-wide
-    if let Some(config) = dirs::config_dir() {
-        return config.join("tcc");
+    // When running as system service, use a system-wide config path.
+    // When running in session mode (dev), use per-user config.
+    if use_session_bus()
+        && let Some(config) = dirs::config_dir()
+    {
+        return config.join("tcc-rs");
     }
-    std::path::PathBuf::from("/etc/tcc")
+    std::path::PathBuf::from("/etc/tcc-rs")
 }
 
 #[cfg(test)]
@@ -580,6 +656,7 @@ mod tests {
         async fn get_webcam_controls(&self, device: String) -> zbus::Result<String>;
         async fn set_webcam_controls(&self, device: String, json: String) -> zbus::Result<()>;
         async fn get_system_info(&self) -> zbus::Result<String>;
+        async fn get_capabilities(&self) -> zbus::Result<String>;
     }
 
     fn test_daemon(mock_io: Arc<io::MockTuxedoIO>, fan_task: Arc<FanControlTask>) -> TccDaemon {

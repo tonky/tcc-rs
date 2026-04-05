@@ -39,6 +39,7 @@ trait TccdDaemon {
     async fn get_webcam_controls(&self, device: String) -> Result<String>;
     async fn set_webcam_controls(&self, device: String, json: String) -> Result<()>;
     async fn get_system_info(&self) -> Result<String>;
+    async fn get_capabilities(&self) -> Result<String>;
 }
 
 /// Manages the D-Bus connection to the daemon, with reconnect support.
@@ -205,5 +206,9 @@ impl DaemonClient {
 
     pub async fn get_system_info(&self) -> Result<String> {
         self.proxy()?.get_system_info().await
+    }
+
+    pub async fn get_capabilities(&self) -> Result<String> {
+        self.proxy()?.get_capabilities().await
     }
 }

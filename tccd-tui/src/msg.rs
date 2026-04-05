@@ -44,6 +44,8 @@ pub enum DataUpdate {
     WebcamControls(String),
     /// System info JSON from daemon.
     SystemInfo(String),
+    /// Hardware capabilities JSON from daemon.
+    Capabilities(String),
 }
 
 #[derive(Debug, Clone, Default)]

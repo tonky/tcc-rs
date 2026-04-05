@@ -31,6 +31,10 @@ pub trait TuxedoIO {
     fn set_charge_start_threshold(&self, percent: u8) -> Result<(), AttributeError>;
     fn set_charge_end_threshold(&self, percent: u8) -> Result<(), AttributeError>;
     fn get_charge_thresholds(&self) -> Result<(u8, u8), AttributeError>;
+    fn set_charging_profile(&self, profile: &str) -> Result<(), AttributeError>;
+    fn get_charging_profile(&self) -> Result<String, AttributeError>;
+    fn set_charging_priority(&self, priority: &str) -> Result<(), AttributeError>;
+    fn get_charging_priority(&self) -> Result<String, AttributeError>;
 
     // ─── Keyboard ───────────────────────────────────────────────────
     fn set_keyboard_brightness(&self, brightness: u8) -> Result<(), AttributeError>;
@@ -70,6 +74,11 @@ enum KeyboardInterface {
     /// Old tuxedo_keyboard platform: /sys/devices/platform/tuxedo_keyboard/
     TuxedoPlatform,
 }
+
+const CHARGING_PROFILE_PATH: &str =
+    "/sys/devices/platform/tuxedo_keyboard/charging_profile/charging_profile";
+const CHARGING_PRIORITY_PATH: &str =
+    "/sys/devices/platform/tuxedo_keyboard/charging_priority/charging_prio";
 
 pub struct SysFsTuxedoIO {
     /// Cached fan control interface (tuxedo platform or generic hwmon).
@@ -119,6 +128,11 @@ impl SysFsTuxedoIO {
     }
 
     fn write_sysfs(path: &str, value: &str) -> Result<(), AttributeError> {
+        // Check existence first: sysfs returns EACCES (not ENOENT) for
+        // non-existent attributes under a valid directory.
+        if !std::path::Path::new(path).exists() {
+            return Err(AttributeError::NotFound(path.to_string()));
+        }
         std::fs::write(path, value).map_err(|e| match e.kind() {
             std::io::ErrorKind::PermissionDenied => {
                 AttributeError::PermissionDenied(path.to_string())
@@ -195,39 +209,48 @@ impl SysFsTuxedoIO {
     }
 
     /// Find keyboard backlight interface. Tries in order:
-    /// 1. Linux LED class: /sys/class/leds/rgb:keyboard/ (multi-color)
-    /// 2. Linux LED class: /sys/class/leds/white:keyboard/ (single-color)
-    /// 3. Old tuxedo_keyboard platform device
+    /// 1. Linux LED class: scan /sys/class/leds/ for entries containing "kbd" or "keyboard"
+    ///    (e.g. rgb:kbd_backlight, white:kbd_backlight, rgb:keyboard, white:keyboard)
+    /// 2. Old tuxedo_keyboard platform device
     fn find_keyboard(&self) -> Result<KeyboardInterface, AttributeError> {
         if let Some(ref iface) = *self.keyboard_interface.read().unwrap() {
             return Ok(iface.clone());
         }
 
-        // 1. RGB LED class (NB04)
-        let rgb_path = "/sys/class/leds/rgb:keyboard";
-        if std::path::Path::new(rgb_path).join("brightness").exists() {
-            let iface = KeyboardInterface::LedClass {
-                path: rgb_path.to_string(),
-                is_rgb: true,
-            };
-            *self.keyboard_interface.write().unwrap() = Some(iface.clone());
-            return Ok(iface);
+        // 1. Scan LED class for keyboard entries
+        let leds_base = "/sys/class/leds";
+        if let Ok(entries) = std::fs::read_dir(leds_base) {
+            // Prefer RGB entries over white-only
+            let mut white_path: Option<String> = None;
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                let name_lower = name.to_lowercase();
+                if (name_lower.contains("kbd") || name_lower.contains("keyboard"))
+                    && entry.path().join("brightness").exists()
+                {
+                    let path = format!("{}/{}", leds_base, name);
+                    let is_rgb = name_lower.starts_with("rgb:");
+                    if is_rgb {
+                        let iface = KeyboardInterface::LedClass { path, is_rgb: true };
+                        *self.keyboard_interface.write().unwrap() = Some(iface.clone());
+                        return Ok(iface);
+                    }
+                    white_path = Some(path);
+                }
+            }
+            if let Some(path) = white_path {
+                let iface = KeyboardInterface::LedClass {
+                    path,
+                    is_rgb: false,
+                };
+                *self.keyboard_interface.write().unwrap() = Some(iface.clone());
+                return Ok(iface);
+            }
         }
 
-        // 2. White LED class (NB05)
-        let white_path = "/sys/class/leds/white:keyboard";
-        if std::path::Path::new(white_path).join("brightness").exists() {
-            let iface = KeyboardInterface::LedClass {
-                path: white_path.to_string(),
-                is_rgb: false,
-            };
-            *self.keyboard_interface.write().unwrap() = Some(iface.clone());
-            return Ok(iface);
-        }
-
-        // 3. Old platform device
+        // 2. Old platform device
         let platform_path = "/sys/devices/platform/tuxedo_keyboard";
-        if std::path::Path::new(platform_path).exists() {
+        if std::path::Path::new(platform_path).join("brightness").exists() {
             let iface = KeyboardInterface::TuxedoPlatform;
             *self.keyboard_interface.write().unwrap() = Some(iface.clone());
             return Ok(iface);
@@ -664,6 +687,22 @@ impl TuxedoIO for SysFsTuxedoIO {
         Ok((start, end))
     }
 
+    fn set_charging_profile(&self, profile: &str) -> Result<(), AttributeError> {
+        Self::write_sysfs(CHARGING_PROFILE_PATH, profile)
+    }
+
+    fn get_charging_profile(&self) -> Result<String, AttributeError> {
+        Self::read_sysfs(CHARGING_PROFILE_PATH)
+    }
+
+    fn set_charging_priority(&self, priority: &str) -> Result<(), AttributeError> {
+        Self::write_sysfs(CHARGING_PRIORITY_PATH, priority)
+    }
+
+    fn get_charging_priority(&self) -> Result<String, AttributeError> {
+        Self::read_sysfs(CHARGING_PRIORITY_PATH)
+    }
+
     fn set_keyboard_brightness(&self, brightness: u8) -> Result<(), AttributeError> {
         match self.find_keyboard()? {
             KeyboardInterface::LedClass { path, .. } => {
@@ -791,6 +830,8 @@ pub struct MockTuxedoIO {
     pub(crate) cpu_energy_perf: RwLock<String>,
     pub(crate) charge_start: RwLock<u8>,
     pub(crate) charge_end: RwLock<u8>,
+    pub(crate) charging_profile: RwLock<String>,
+    pub(crate) charging_priority: RwLock<String>,
     pub(crate) kbd_brightness: RwLock<u8>,
     pub(crate) kbd_color: RwLock<String>,
     pub(crate) kbd_mode: RwLock<String>,
@@ -820,6 +861,8 @@ impl MockTuxedoIO {
             cpu_energy_perf: RwLock::new("balance_performance".to_string()),
             charge_start: RwLock::new(0),
             charge_end: RwLock::new(100),
+            charging_profile: RwLock::new("high_capacity".to_string()),
+            charging_priority: RwLock::new("charge_battery".to_string()),
             kbd_brightness: RwLock::new(50),
             kbd_color: RwLock::new("ffffff".to_string()),
             kbd_mode: RwLock::new("0".to_string()),
@@ -908,6 +951,24 @@ impl TuxedoIO for MockTuxedoIO {
         let start = *self.charge_start.read().unwrap();
         let end = *self.charge_end.read().unwrap();
         Ok((start, end))
+    }
+
+    fn set_charging_profile(&self, profile: &str) -> Result<(), AttributeError> {
+        *self.charging_profile.write().unwrap() = profile.to_string();
+        Ok(())
+    }
+
+    fn get_charging_profile(&self) -> Result<String, AttributeError> {
+        Ok(self.charging_profile.read().unwrap().clone())
+    }
+
+    fn set_charging_priority(&self, priority: &str) -> Result<(), AttributeError> {
+        *self.charging_priority.write().unwrap() = priority.to_string();
+        Ok(())
+    }
+
+    fn get_charging_priority(&self) -> Result<String, AttributeError> {
+        Ok(self.charging_priority.read().unwrap().clone())
     }
 
     fn set_keyboard_brightness(&self, brightness: u8) -> Result<(), AttributeError> {

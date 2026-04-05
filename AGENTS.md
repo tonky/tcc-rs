@@ -22,7 +22,7 @@ Use recent libraries, dependencies and common approaches, as of April 2026.
 - **Build**: `flox activate && just build` (or `cargo build --workspace`)
 - **Test**: `just test` (126 tests), `cargo clippy --workspace` (0 warnings)
 - **Run (dev)**: `just run-mock-daemon` (term 1) + `just run-tui` (term 2) — both use session bus
-- **Run (real)**: `sudo just install && sudo systemctl enable --now tccd` then `tccd-tui`
+- **Run (real)**: `sudo just install && sudo systemctl enable --now tccd-rs` then `tccd-tui`
 
 ### Hardware IO
 

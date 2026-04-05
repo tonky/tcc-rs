@@ -1,5 +1,33 @@
 # Session Diary (WORKLOG)
 
+## 2026-04-06 - Tuxedo charging profile/priority support
+- **Problem**: Hardware supports charging controls via original TCC, but daemon reported `chargingProfile: false` because it only checked for standard Linux `charge_control_*_threshold` files which don't exist on this TUXEDO hardware.
+- **Root cause**: TUXEDO laptops use a custom sysfs interface via `tuxedo_keyboard` platform driver, not the standard Linux power_supply charge thresholds.
+  - Profile: `/sys/devices/platform/tuxedo_keyboard/charging_profile/charging_profile` (values: `high_capacity`, `balanced`, `stationary`)
+  - Priority: `/sys/devices/platform/tuxedo_keyboard/charging_priority/charging_prio` (values: `charge_battery`, `performance`)
+- **Changes**:
+  - `io.rs`: Added 4 new `TuxedoIO` trait methods (`set/get_charging_profile`, `set/get_charging_priority`). SysFsTuxedoIO reads/writes tuxedo sysfs paths (extracted to constants). MockTuxedoIO uses `RwLock<String>` fields.
+  - `tuxedo_io.rs`: IoctlTuxedoIO delegates all 4 methods to `self.sysfs`.
+  - `main.rs`: `get_charging_settings` overlays real hardware values. `set_charging_settings` writes profile/priority to sysfs. Added bidirectional conversion functions (display names ↔ sysfs values). `get_capabilities` now includes `chargingProfile` boolean.
+  - `model.rs`: Added `charging_profile: bool` to `Capabilities` struct.
+  - `update.rs`: Capabilities handler parses `chargingProfile`. `parse_charging_form` makes Profile/Priority fields read-only when `caps.charging_profile` is false. Fixed `charging_form_to_json` to handle read-only fields safely.
+- 83 tests pass, 0 clippy warnings.
+
+## 2026-04-05 - Packaging: systemd unit rename to avoid vendor conflict
+- Renamed install target unit from `tccd.service` to `tccd-rs.service`.
+- Updated `Justfile` install/uninstall recipes to write/remove `/etc/systemd/system/tccd-rs.service` and print start instructions for `tccd-rs`.
+- Replaced `dist/tccd.service` with `dist/tccd-rs.service` (same daemon binary and D-Bus bus name).
+- Updated real-hardware startup docs in `README.md` and project reference in `AGENTS.md`.
+- Decision: keep D-Bus name `com.tuxedocomputers.tccd` unchanged for compatibility with existing TUI/client code; only the systemd unit name is namespaced.
+
+## 2026-04-05 - Critical fix: ioctl size encoding (tuxedo_io)
+- **Root cause**: All `ioctl_read!`/`ioctl_write_ptr!` macros in `tuxedo_io.rs` used `i32` (4 bytes) as the type parameter. The C header `tuxedo_io_ioctl.h` defines them with `int32_t*` (pointer = 8 bytes on x86_64). Since `_IOR`/`_IOW` encode `sizeof(type)` into the ioctl request number, our requests used wrong numbers and the kernel silently returned success without populating output buffers.
+- **Symptoms**: `IoctlTuxedoIO::detect_family()` failed ("neither Clevo nor Uniwill hardware detected"), daemon fell back to `SysFsTuxedoIO` which had no hwmon PWM nodes on this Uniwill laptop → no fan telemetry, no fan control, dashboard empty.
+- **Fix**: Changed all ioctl macro declarations from `i32` to `usize` (8 bytes on x86_64), matching the kernel's pointer-sized encoding. Updated all call sites to use `usize` buffers and cast results to `i32`.
+- **Verification**: Built diagnostic `examples/hwcheck.rs` that confirmed `usize` ioctls return real data (hwcheck_uw=1, fanspeed=76, fan_temp=57) while `i32` ioctls returned -1 (untouched buffer).
+- **Config path fix**: Changed `dirs_config_path()` to use `/etc/tcc-rs` for system bus mode (was using `/root/.config/tcc` via `dirs::config_dir()`). Session bus mode still uses per-user `~/.config/tcc-rs`.
+- All 126 tests pass, 0 clippy warnings.
+
 ## 2026-04-04 - Phase 1 Setup & Implementation
 - Reviewed RUST_REWRITE.md and detailed phase plans, standardizing the phases to 1-6.
 - Initialized Cargo workspace for Rust rewrite.

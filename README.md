@@ -131,7 +131,7 @@ just run-tui           # terminal 2: TUI on session bus
 sudo just install
 
 # Enable and start the daemon
-sudo systemctl enable --now tccd
+sudo systemctl enable --now tccd-rs
 
 # Run the TUI (as regular user, connects to system bus)
 tccd-tui

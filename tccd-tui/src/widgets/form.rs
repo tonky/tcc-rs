@@ -343,6 +343,13 @@ impl FormState {
         }
     }
 
+    /// Returns true if the currently focused field is a text input.
+    pub fn is_text_focused(&self) -> bool {
+        self.fields
+            .get(self.focused)
+            .is_some_and(|f| matches!(f.kind, FieldKind::Text { .. }))
+    }
+
     /// Check if any field has been modified.
     pub fn is_dirty(&self) -> bool {
         self.fields.iter().any(|f| f.dirty)

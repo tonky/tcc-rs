@@ -22,6 +22,52 @@ pub fn update(model: &mut Model, msg: Msg) -> Vec<Command> {
                 return commands;
             }
 
+            // When a text field has focus, give it priority over hotkeys
+            // for character input and backspace. Ctrl/Alt combos bypass this
+            // so shortcuts like Ctrl+S still work.
+            if matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace)
+                && !key
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+            {
+                let (is_text, consumed) = {
+                    let form_opt = if model.active_tab == Tab::Profiles
+                        && model.profiles.view != ProfileView::List
+                    {
+                        model.profiles.editor_form.as_mut()
+                    } else {
+                        match model.active_tab {
+                            Tab::Settings => model.settings.form.as_mut(),
+                            Tab::Keyboard => model.keyboard.form.as_mut(),
+                            Tab::Charging => model.charging.form.as_mut(),
+                            Tab::Power => model.power.form.as_mut(),
+                            Tab::Display => model.display.form.as_mut(),
+                            Tab::Webcam => model.webcam.form.as_mut(),
+                            _ => None,
+                        }
+                    };
+                    match form_opt {
+                        Some(form) if form.is_text_focused() => {
+                            (true, form.handle_key(key.code))
+                        }
+                        _ => (false, false),
+                    }
+                };
+                if is_text {
+                    if consumed {
+                        if model.active_tab == Tab::Profiles {
+                            model.profiles.editor_dirty = model
+                                .profiles
+                                .editor_form
+                                .as_ref()
+                                .is_some_and(|f| f.is_dirty());
+                        }
+                        model.dirty = true;
+                    }
+                    return commands;
+                }
+            }
+
             match (key.modifiers, key.code) {
                 // '?' toggles help overlay
                 (_, KeyCode::Char('?')) => {
@@ -478,7 +524,7 @@ pub fn update(model: &mut Model, msg: Msg) -> Vec<Command> {
     commands
 }
 
-fn handle_data(model: &mut Model, data_update: DataUpdate, _commands: &mut Vec<Command>) {
+fn handle_data(model: &mut Model, data_update: DataUpdate, commands: &mut Vec<Command>) {
     match data_update {
         DataUpdate::FanData(fan) => {
             if let Some(&speed) = fan.speeds_percent.first() {
@@ -580,7 +626,7 @@ fn handle_data(model: &mut Model, data_update: DataUpdate, _commands: &mut Vec<C
             model.dirty = true;
         }
         DataUpdate::ChargingData(json) => {
-            model.charging.form = Some(parse_charging_form(&json));
+            model.charging.form = Some(parse_charging_form(&json, &model.capabilities));
             model.charging.loaded = true;
             model.dirty = true;
         }
@@ -623,7 +669,7 @@ fn handle_data(model: &mut Model, data_update: DataUpdate, _commands: &mut Vec<C
                 model.webcam.loaded = true;
                 // Fetch controls for first device
                 if let Some(dev) = model.webcam.devices.first() {
-                    _commands.push(Command::FetchWebcamControls(dev.path.clone()));
+                    commands.push(Command::FetchWebcamControls(dev.path.clone()));
                 }
             }
             model.dirty = true;
@@ -639,6 +685,18 @@ fn handle_data(model: &mut Model, data_update: DataUpdate, _commands: &mut Vec<C
             model.info.hostname = v.get("hostname").and_then(|v| v.as_str()).map(String::from);
             model.info.kernel_version = v.get("kernelVersion").and_then(|v| v.as_str()).map(String::from);
             model.info.loaded = true;
+            model.dirty = true;
+        }
+        DataUpdate::Capabilities(json) => {
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap_or_default();
+            model.capabilities.charge_thresholds = v.get("chargeThresholds").and_then(|v| v.as_bool()).unwrap_or(false);
+            model.capabilities.charging_profile = v.get("chargingProfile").and_then(|v| v.as_bool()).unwrap_or(false);
+            model.capabilities.fan_control = v.get("fanControl").and_then(|v| v.as_bool()).unwrap_or(false);
+            model.capabilities.display_brightness = v.get("displayBrightness").and_then(|v| v.as_bool()).unwrap_or(false);
+            // Rebuild forms if they were already loaded, so fields reflect capabilities
+            if model.charging.loaded {
+                commands.push(Command::FetchCharging);
+            }
             model.dirty = true;
         }
     }
@@ -749,7 +807,7 @@ fn keyboard_form_to_json(form: &FormState) -> String {
 
 // ─── Charging form parsing ──────────────────────────────────────────
 
-fn parse_charging_form(json: &str) -> FormState {
+fn parse_charging_form(json: &str, caps: &crate::model::Capabilities) -> FormState {
     let v: serde_json::Value = serde_json::from_str(json).unwrap_or_default();
 
     let profile_options: Vec<String> = CHARGING_PROFILES.iter().map(|s| (*s).into()).collect();
@@ -783,21 +841,43 @@ fn parse_charging_form(json: &str) -> FormState {
 
     let fields = vec![
         FormField::section("── Charging Profile ──"),
-        FormField::select("Profile", profile_options, profile_idx),
-        FormField::select("Priority", priority_options, priority_idx),
+        if caps.charging_profile {
+            FormField::select("Profile", profile_options, profile_idx)
+        } else {
+            FormField::read_only("Profile", "N/A (hardware unsupported)")
+        },
+        if caps.charging_profile {
+            FormField::select("Priority", priority_options, priority_idx)
+        } else {
+            FormField::read_only("Priority", "N/A (hardware unsupported)")
+        },
         FormField::section("── Thresholds ──"),
-        FormField::number("Start (%)", start_threshold, 20.0, 100.0, 5.0),
-        FormField::number("End (%)", end_threshold, 20.0, 100.0, 5.0),
+        if caps.charge_thresholds {
+            FormField::number("Start (%)", start_threshold, 20.0, 100.0, 5.0)
+        } else {
+            FormField::read_only("Start (%)", "N/A (hardware unsupported)")
+        },
+        if caps.charge_thresholds {
+            FormField::number("End (%)", end_threshold, 20.0, 100.0, 5.0)
+        } else {
+            FormField::read_only("End (%)", "N/A (hardware unsupported)")
+        },
     ];
     FormState::new(fields)
 }
 
 fn charging_form_to_json(form: &FormState) -> String {
-    let profile_idx = form.field_by_label("Profile").and_then(|f| f.value.as_select()).unwrap_or(0);
-    let profile = CHARGING_PROFILES.get(profile_idx).unwrap_or(&"Full Capacity");
+    let profile_field = form.field_by_label("Profile");
+    let profile = profile_field
+        .and_then(|f| f.value.as_select())
+        .and_then(|i| CHARGING_PROFILES.get(i).copied())
+        .unwrap_or("Full Capacity");
 
-    let priority_idx = form.field_by_label("Priority").and_then(|f| f.value.as_select()).unwrap_or(0);
-    let priority = CHARGING_PRIORITIES.get(priority_idx).unwrap_or(&"Battery");
+    let priority_field = form.field_by_label("Priority");
+    let priority = priority_field
+        .and_then(|f| f.value.as_select())
+        .and_then(|i| CHARGING_PRIORITIES.get(i).copied())
+        .unwrap_or("Battery");
 
     let start = form.field_by_label("Start (%)").and_then(|f| f.value.as_number()).unwrap_or(80.0);
     let end = form.field_by_label("End (%)").and_then(|f| f.value.as_number()).unwrap_or(100.0);
@@ -1707,6 +1787,8 @@ mod tests {
     #[test]
     fn charging_data_populates_form() {
         let mut model = Model::default();
+        model.capabilities.charge_thresholds = true;
+        model.capabilities.charging_profile = true;
         let json = r#"{"chargingProfile":"Reduced","chargingPriority":"Performance","startThreshold":60.0,"endThreshold":90.0}"#;
         update(
             &mut model,
@@ -1820,6 +1902,12 @@ mod tests {
         }
         model.profiles.editor_dirty = true;
 
+        // Move focus off the text field so 's' triggers save, not text input
+        if let Some(ref mut form) = model.profiles.editor_form {
+            form.handle_key(KeyCode::Down); // Name → Description (text)
+            form.handle_key(KeyCode::Down); // Description → Governor (select)
+        }
+
         let cmds = update(&mut model, key(KeyCode::Char('s')));
         assert!(cmds.iter().any(|c| matches!(c, Command::SaveProfile { .. })));
         if let Some(Command::SaveProfile { json, .. }) = cmds.iter().find(|c| matches!(c, Command::SaveProfile { .. })) {
@@ -1876,7 +1964,8 @@ mod tests {
     #[test]
     fn charging_form_roundtrip() {
         let json = r#"{"chargingProfile":"Stationary","chargingPriority":"Performance","startThreshold":40.0,"endThreshold":80.0}"#;
-        let form = parse_charging_form(json);
+        let caps = crate::model::Capabilities { charge_thresholds: true, charging_profile: true, ..Default::default() };
+        let form = parse_charging_form(json, &caps);
         let result = charging_form_to_json(&form);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["chargingProfile"], "Stationary");
@@ -1923,6 +2012,7 @@ mod tests {
             active_tab: Tab::Charging,
             ..Default::default()
         };
+        model.capabilities.charge_thresholds = true;
         let json = r#"{"chargingProfile":"Full Capacity","chargingPriority":"Battery","startThreshold":90.0,"endThreshold":40.0}"#;
         update(&mut model, Msg::Data(DataUpdate::ChargingData(json.into())));
         // Form is dirty because start > end is loaded from daemon

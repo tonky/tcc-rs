@@ -20,54 +20,63 @@ const MAGIC_WRITE_CL: u8 = IOCTL_MAGIC + 2; // 0xEE
 const MAGIC_READ_UW: u8 = IOCTL_MAGIC + 3;  // 0xEF
 const MAGIC_WRITE_UW: u8 = IOCTL_MAGIC + 4; // 0xF0
 
+// ── Ioctl declarations ──────────────────────────────────────────────
+//
+// IMPORTANT: The C header (`tuxedo_io_ioctl.h`) defines all ioctls
+// with pointer types, e.g. `_IOR(MAGIC, NR, int32_t*)`. The `_IOR`
+// macro encodes `sizeof(type)` into the ioctl request number. On
+// 64-bit, `sizeof(int32_t*) == 8`, not 4. We must use `usize` here
+// so that `size_of::<usize>() == 8` matches the kernel's encoding.
+// The actual payload is still a 32-bit integer in the low bytes.
+
 // ── General ─────────────────────────────────────────────────────────
 
-ioctl_read!(r_hwcheck_cl, IOCTL_MAGIC, 0x05, i32);
-ioctl_read!(r_hwcheck_uw, IOCTL_MAGIC, 0x06, i32);
+ioctl_read!(r_hwcheck_cl, IOCTL_MAGIC, 0x05, usize);
+ioctl_read!(r_hwcheck_uw, IOCTL_MAGIC, 0x06, usize);
 
 // ── Clevo read ──────────────────────────────────────────────────────
 
-ioctl_read!(r_cl_faninfo1, MAGIC_READ_CL, 0x10, i32);
-ioctl_read!(r_cl_faninfo2, MAGIC_READ_CL, 0x11, i32);
-ioctl_read!(r_cl_faninfo3, MAGIC_READ_CL, 0x12, i32);
-ioctl_read!(r_cl_webcam_sw, MAGIC_READ_CL, 0x13, i32);
+ioctl_read!(r_cl_faninfo1, MAGIC_READ_CL, 0x10, usize);
+ioctl_read!(r_cl_faninfo2, MAGIC_READ_CL, 0x11, usize);
+ioctl_read!(r_cl_faninfo3, MAGIC_READ_CL, 0x12, usize);
+ioctl_read!(r_cl_webcam_sw, MAGIC_READ_CL, 0x13, usize);
 
 // ── Clevo write ─────────────────────────────────────────────────────
 
-ioctl_write_ptr!(w_cl_fanspeed, MAGIC_WRITE_CL, 0x10, i32);
-ioctl_write_ptr!(w_cl_fanauto, MAGIC_WRITE_CL, 0x11, i32);
-ioctl_write_ptr!(w_cl_webcam_sw, MAGIC_WRITE_CL, 0x12, i32);
-ioctl_write_ptr!(w_cl_perf_profile, MAGIC_WRITE_CL, 0x15, i32);
+ioctl_write_ptr!(w_cl_fanspeed, MAGIC_WRITE_CL, 0x10, usize);
+ioctl_write_ptr!(w_cl_fanauto, MAGIC_WRITE_CL, 0x11, usize);
+ioctl_write_ptr!(w_cl_webcam_sw, MAGIC_WRITE_CL, 0x12, usize);
+ioctl_write_ptr!(w_cl_perf_profile, MAGIC_WRITE_CL, 0x15, usize);
 
 // ── Uniwill read ────────────────────────────────────────────────────
 
-ioctl_read!(r_uw_fanspeed, MAGIC_READ_UW, 0x10, i32);
-ioctl_read!(r_uw_fanspeed2, MAGIC_READ_UW, 0x11, i32);
-ioctl_read!(r_uw_fan_temp, MAGIC_READ_UW, 0x12, i32);
-ioctl_read!(r_uw_fan_temp2, MAGIC_READ_UW, 0x13, i32);
-ioctl_read!(r_uw_fans_min_speed, MAGIC_READ_UW, 0x17, i32);
-ioctl_read!(r_uw_tdp0, MAGIC_READ_UW, 0x18, i32);
-ioctl_read!(r_uw_tdp1, MAGIC_READ_UW, 0x19, i32);
-ioctl_read!(r_uw_tdp2, MAGIC_READ_UW, 0x1a, i32);
-ioctl_read!(r_uw_tdp0_min, MAGIC_READ_UW, 0x1b, i32);
-ioctl_read!(r_uw_tdp1_min, MAGIC_READ_UW, 0x1c, i32);
-ioctl_read!(r_uw_tdp2_min, MAGIC_READ_UW, 0x1d, i32);
-ioctl_read!(r_uw_tdp0_max, MAGIC_READ_UW, 0x1e, i32);
-ioctl_read!(r_uw_tdp1_max, MAGIC_READ_UW, 0x1f, i32);
-ioctl_read!(r_uw_tdp2_max, MAGIC_READ_UW, 0x20, i32);
-ioctl_read!(r_uw_profs_available, MAGIC_READ_UW, 0x21, i32);
+ioctl_read!(r_uw_fanspeed, MAGIC_READ_UW, 0x10, usize);
+ioctl_read!(r_uw_fanspeed2, MAGIC_READ_UW, 0x11, usize);
+ioctl_read!(r_uw_fan_temp, MAGIC_READ_UW, 0x12, usize);
+ioctl_read!(r_uw_fan_temp2, MAGIC_READ_UW, 0x13, usize);
+ioctl_read!(r_uw_fans_min_speed, MAGIC_READ_UW, 0x17, usize);
+ioctl_read!(r_uw_tdp0, MAGIC_READ_UW, 0x18, usize);
+ioctl_read!(r_uw_tdp1, MAGIC_READ_UW, 0x19, usize);
+ioctl_read!(r_uw_tdp2, MAGIC_READ_UW, 0x1a, usize);
+ioctl_read!(r_uw_tdp0_min, MAGIC_READ_UW, 0x1b, usize);
+ioctl_read!(r_uw_tdp1_min, MAGIC_READ_UW, 0x1c, usize);
+ioctl_read!(r_uw_tdp2_min, MAGIC_READ_UW, 0x1d, usize);
+ioctl_read!(r_uw_tdp0_max, MAGIC_READ_UW, 0x1e, usize);
+ioctl_read!(r_uw_tdp1_max, MAGIC_READ_UW, 0x1f, usize);
+ioctl_read!(r_uw_tdp2_max, MAGIC_READ_UW, 0x20, usize);
+ioctl_read!(r_uw_profs_available, MAGIC_READ_UW, 0x21, usize);
 
 // ── Uniwill write ───────────────────────────────────────────────────
 
-ioctl_write_ptr!(w_uw_fanspeed, MAGIC_WRITE_UW, 0x10, i32);
-ioctl_write_ptr!(w_uw_fanspeed2, MAGIC_WRITE_UW, 0x11, i32);
-ioctl_write_ptr!(w_uw_mode, MAGIC_WRITE_UW, 0x12, i32);
-ioctl_write_ptr!(w_uw_mode_enable, MAGIC_WRITE_UW, 0x13, i32);
+ioctl_write_ptr!(w_uw_fanspeed, MAGIC_WRITE_UW, 0x10, usize);
+ioctl_write_ptr!(w_uw_fanspeed2, MAGIC_WRITE_UW, 0x11, usize);
+ioctl_write_ptr!(w_uw_mode, MAGIC_WRITE_UW, 0x12, usize);
+ioctl_write_ptr!(w_uw_mode_enable, MAGIC_WRITE_UW, 0x13, usize);
 ioctl_none!(w_uw_fanauto, MAGIC_WRITE_UW, 0x14);
-ioctl_write_ptr!(w_uw_tdp0, MAGIC_WRITE_UW, 0x15, i32);
-ioctl_write_ptr!(w_uw_tdp1, MAGIC_WRITE_UW, 0x16, i32);
-ioctl_write_ptr!(w_uw_tdp2, MAGIC_WRITE_UW, 0x17, i32);
-ioctl_write_ptr!(w_uw_perf_prof, MAGIC_WRITE_UW, 0x18, i32);
+ioctl_write_ptr!(w_uw_tdp0, MAGIC_WRITE_UW, 0x15, usize);
+ioctl_write_ptr!(w_uw_tdp1, MAGIC_WRITE_UW, 0x16, usize);
+ioctl_write_ptr!(w_uw_tdp2, MAGIC_WRITE_UW, 0x17, usize);
+ioctl_write_ptr!(w_uw_perf_prof, MAGIC_WRITE_UW, 0x18, usize);
 
 // ── Hardware family ─────────────────────────────────────────────────
 
@@ -117,7 +126,7 @@ impl IoctlTuxedoIO {
 
     fn detect_family(fd: &File) -> Result<HwFamily, AttributeError> {
         let raw = fd.as_raw_fd();
-        let mut val: i32 = 0;
+        let mut val: usize = 0;
 
         // Check Clevo first
         if unsafe { r_hwcheck_cl(raw, &mut val) }.is_ok() && val == 1 {
@@ -125,6 +134,7 @@ impl IoctlTuxedoIO {
         }
 
         // Check Uniwill
+        val = 0;
         if unsafe { r_hwcheck_uw(raw, &mut val) }.is_ok() && val == 1 {
             return Ok(HwFamily::Uniwill);
         }
@@ -146,7 +156,7 @@ impl IoctlTuxedoIO {
 
     /// Read Clevo fan info for fan_idx (0-2). Returns raw ACPI result.
     fn cl_read_faninfo(&self, fan_idx: i32) -> Result<i32, AttributeError> {
-        let mut val: i32 = 0;
+        let mut val: usize = 0;
         let fd = self.raw_fd();
         let res = match fan_idx {
             0 => unsafe { r_cl_faninfo1(fd, &mut val) },
@@ -155,15 +165,15 @@ impl IoctlTuxedoIO {
             _ => return Err(AttributeError::NotFound(format!("Clevo fan {} not supported", fan_idx))),
         };
         res.map_err(|e| Self::ioctl_err("R_CL_FANINFO", e))?;
-        Ok(val)
+        Ok(val as i32)
     }
 
     /// Set Clevo fan speeds. Packs up to 3 fan speeds (0-255 each)
     /// into one i32: fan0=low byte, fan1=byte1, fan2=byte2.
     fn cl_set_fan_speeds(&self, speeds: &[u8; 3]) -> Result<(), AttributeError> {
-        let packed: i32 = speeds[0] as i32
-            | (speeds[1] as i32) << 8
-            | (speeds[2] as i32) << 16;
+        let packed: usize = speeds[0] as usize
+            | (speeds[1] as usize) << 8
+            | (speeds[2] as usize) << 16;
         unsafe { w_cl_fanspeed(self.raw_fd(), &packed) }
             .map_err(|e| Self::ioctl_err("W_CL_FANSPEED", e))?;
         Ok(())
@@ -175,7 +185,7 @@ impl IoctlTuxedoIO {
     const UW_FAN_MAX: i32 = 200;
 
     fn uw_read_fanspeed(&self, fan_idx: i32) -> Result<i32, AttributeError> {
-        let mut val: i32 = 0;
+        let mut val: usize = 0;
         let fd = self.raw_fd();
         let res = match fan_idx {
             0 => unsafe { r_uw_fanspeed(fd, &mut val) },
@@ -183,14 +193,15 @@ impl IoctlTuxedoIO {
             _ => return Err(AttributeError::NotFound(format!("Uniwill fan {} not supported", fan_idx))),
         };
         res.map_err(|e| Self::ioctl_err("R_UW_FANSPEED", e))?;
-        Ok(val)
+        Ok(val as i32)
     }
 
     fn uw_set_fanspeed(&self, fan_idx: i32, raw: i32) -> Result<(), AttributeError> {
         let fd = self.raw_fd();
+        let val = raw as usize;
         let res = match fan_idx {
-            0 => unsafe { w_uw_fanspeed(fd, &raw) },
-            1 => unsafe { w_uw_fanspeed2(fd, &raw) },
+            0 => unsafe { w_uw_fanspeed(fd, &val) },
+            1 => unsafe { w_uw_fanspeed2(fd, &val) },
             _ => return Err(AttributeError::NotFound(format!("Uniwill fan {} not supported", fan_idx))),
         };
         res.map_err(|e| Self::ioctl_err("W_UW_FANSPEED", e))?;
@@ -204,7 +215,7 @@ impl IoctlTuxedoIO {
         if self.family != HwFamily::Uniwill {
             return Err(AttributeError::NotFound("TDP control is Uniwill-only".into()));
         }
-        let mut val: i32 = 0;
+        let mut val: usize = 0;
         let fd = self.raw_fd();
         let res = match index {
             0 => unsafe { r_uw_tdp0(fd, &mut val) },
@@ -213,7 +224,7 @@ impl IoctlTuxedoIO {
             _ => return Err(AttributeError::NotFound(format!("TDP index {} invalid", index))),
         };
         res.map_err(|e| Self::ioctl_err("R_UW_TDP", e))?;
-        Ok(val)
+        Ok(val as i32)
     }
 
     /// Write TDP value (Uniwill only).
@@ -222,10 +233,11 @@ impl IoctlTuxedoIO {
             return Err(AttributeError::NotFound("TDP control is Uniwill-only".into()));
         }
         let fd = self.raw_fd();
+        let val = value as usize;
         let res = match index {
-            0 => unsafe { w_uw_tdp0(fd, &value) },
-            1 => unsafe { w_uw_tdp1(fd, &value) },
-            2 => unsafe { w_uw_tdp2(fd, &value) },
+            0 => unsafe { w_uw_tdp0(fd, &val) },
+            1 => unsafe { w_uw_tdp1(fd, &val) },
+            2 => unsafe { w_uw_tdp2(fd, &val) },
             _ => return Err(AttributeError::NotFound(format!("TDP index {} invalid", index))),
         };
         res.map_err(|e| Self::ioctl_err("W_UW_TDP", e))?;
@@ -237,8 +249,8 @@ impl IoctlTuxedoIO {
         if self.family != HwFamily::Uniwill {
             return Err(AttributeError::NotFound("TDP control is Uniwill-only".into()));
         }
-        let mut min_val: i32 = 0;
-        let mut max_val: i32 = 0;
+        let mut min_val: usize = 0;
+        let mut max_val: usize = 0;
         let fd = self.raw_fd();
         let (r_min, r_max) = match index {
             0 => (
@@ -257,7 +269,7 @@ impl IoctlTuxedoIO {
         };
         r_min.map_err(|e| Self::ioctl_err("R_UW_TDP_MIN", e))?;
         r_max.map_err(|e| Self::ioctl_err("R_UW_TDP_MAX", e))?;
-        Ok((min_val, max_val))
+        Ok((min_val as i32, max_val as i32))
     }
 
     /// Reset fans to automatic control.
@@ -265,7 +277,7 @@ impl IoctlTuxedoIO {
         let fd = self.raw_fd();
         match self.family {
             HwFamily::Clevo => {
-                let val: i32 = 0;
+                let val: usize = 0;
                 unsafe { w_cl_fanauto(fd, &val) }
                     .map_err(|e| Self::ioctl_err("W_CL_FANAUTO", e))?;
             }
@@ -329,7 +341,7 @@ impl TuxedoIO for IoctlTuxedoIO {
     fn set_webcam_status(&self, enabled: bool) -> Result<(), AttributeError> {
         match self.family {
             HwFamily::Clevo => {
-                let val: i32 = if enabled { 1 } else { 0 };
+                let val: usize = if enabled { 1 } else { 0 };
                 unsafe { w_cl_webcam_sw(self.raw_fd(), &val) }
                     .map_err(|e| Self::ioctl_err("W_CL_WEBCAM_SW", e))?;
                 Ok(())
@@ -381,6 +393,22 @@ impl TuxedoIO for IoctlTuxedoIO {
 
     fn get_charge_thresholds(&self) -> Result<(u8, u8), AttributeError> {
         self.sysfs.get_charge_thresholds()
+    }
+
+    fn set_charging_profile(&self, profile: &str) -> Result<(), AttributeError> {
+        self.sysfs.set_charging_profile(profile)
+    }
+
+    fn get_charging_profile(&self) -> Result<String, AttributeError> {
+        self.sysfs.get_charging_profile()
+    }
+
+    fn set_charging_priority(&self, priority: &str) -> Result<(), AttributeError> {
+        self.sysfs.set_charging_priority(priority)
+    }
+
+    fn get_charging_priority(&self) -> Result<String, AttributeError> {
+        self.sysfs.get_charging_priority()
     }
 
     fn set_keyboard_brightness(&self, brightness: u8) -> Result<(), AttributeError> {

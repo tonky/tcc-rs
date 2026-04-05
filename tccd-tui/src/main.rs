@@ -57,6 +57,18 @@ async fn run(mut terminal: DefaultTerminal) -> Result<()> {
     // Spawn data polling tasks
     let poller_handles = DataPoller::spawn_all(tx.clone(), client.clone(), &model.poll_config);
 
+    // Fetch hardware capabilities once at startup
+    {
+        let c = client.clone();
+        let t = tx.clone();
+        tokio::spawn(async move {
+            let client = c.lock().await;
+            if let Ok(json) = client.get_capabilities().await {
+                let _ = t.send(Msg::Data(crate::msg::DataUpdate::Capabilities(json)));
+            }
+        });
+    }
+
     // Clone tx for the command dispatcher
     let cmd_tx = tx.clone();
     let cmd_client = client.clone();
@@ -567,6 +579,24 @@ async fn dispatch_commands(
                         Err(e) => {
                             let _ = t.send(Msg::Data(crate::msg::DataUpdate::ActionResult {
                                 action: "Fetch system info".into(),
+                                result: Err(e.to_string()),
+                            }));
+                        }
+                    }
+                });
+            }
+            Command::FetchCapabilities => {
+                let c = client.clone();
+                let t = tx.clone();
+                tokio::spawn(async move {
+                    let client = c.lock().await;
+                    match client.get_capabilities().await {
+                        Ok(json) => {
+                            let _ = t.send(Msg::Data(crate::msg::DataUpdate::Capabilities(json)));
+                        }
+                        Err(e) => {
+                            let _ = t.send(Msg::Data(crate::msg::DataUpdate::ActionResult {
+                                action: "Fetch capabilities".into(),
                                 result: Err(e.to_string()),
                             }));
                         }

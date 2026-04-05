@@ -41,4 +41,6 @@ pub enum Command {
     SaveWebcamControls { device: String, json: String },
     // Info commands
     FetchSystemInfo,
+    // Capabilities
+    FetchCapabilities,
 }

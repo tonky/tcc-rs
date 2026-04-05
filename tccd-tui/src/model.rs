@@ -125,6 +125,7 @@ pub struct Model {
     pub display: DisplayTabState,
     pub webcam: WebcamTabState,
     pub info: InfoState,
+    pub capabilities: Capabilities,
     pub help_visible: bool,
     #[allow(dead_code)]
     pub no_color: bool,
@@ -160,6 +161,7 @@ impl Default for Model {
             display: DisplayTabState::default(),
             webcam: WebcamTabState::default(),
             info: InfoState::default(),
+            capabilities: Capabilities::default(),
             help_visible: false,
             no_color: std::env::var("NO_COLOR").is_ok(),
             notifications: VecDeque::new(),
@@ -231,6 +233,18 @@ pub struct SettingsState {
 pub struct KeyboardState {
     pub form: Option<FormState>,
     pub loaded: bool,
+}
+
+// ─── Hardware capabilities ──────────────────────────────────────────
+
+/// Hardware capabilities reported by the daemon.
+/// Used to disable form fields for unavailable controls.
+#[derive(Debug, Clone, Default)]
+pub struct Capabilities {
+    pub charge_thresholds: bool,
+    pub charging_profile: bool,
+    pub fan_control: bool,
+    pub display_brightness: bool,
 }
 
 // ─── Charging state ─────────────────────────────────────────────────
